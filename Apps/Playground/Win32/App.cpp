@@ -24,6 +24,11 @@
 #include <Babylon/Polyfills/Canvas.h>
 
 #define MAX_LOADSTRING 100
+#define MAX_TOUCH_POINTS 10
+
+// TODO
+int points[MAX_TOUCH_POINTS][2];
+int activeTouchPoints[MAX_TOUCH_POINTS];
 
 // Global Variables:
 HINSTANCE hInst;                     // current instance
@@ -295,6 +300,19 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
     ShowWindow(hWnd, nCmdShow);
     UpdateWindow(hWnd);
 
+    if (!RegisterTouchWindow(hWnd, 0))
+    {
+        // Do something
+        OutputDebugStringA("CAN'T DO TOUCH");
+    }
+
+    for (int i = 0; i < MAX_TOUCH_POINTS; i++)
+    {
+        points[i][0] = -1;
+        points[i][1] = -1;
+        activeTouchPoints[i] = -1;
+    }  
+
     RefreshBabylon(hWnd);
 
     return TRUE;
@@ -387,6 +405,30 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             }
             break;
         }
+        case WM_TOUCH:
+        {
+            if (nativeInput != nullptr)
+            {
+                //int wmId, wmEvent, i, x, y;
+
+                UINT cInputs;
+                PTOUCHINPUT pInputs;
+                //POINT ptInput;   
+
+                cInputs = LOWORD(wParam);
+                pInputs = new TOUCHINPUT[cInputs];
+                if (pInputs)
+                {
+                    if (GetTouchInputInfo((HTOUCHINPUT)lParam, cInputs, pInputs, sizeof(TOUCHINPUT)))
+                    {
+                        TOUCHINPUT ti = pInputs[0];
+                        //nativeInput->MouseMove(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+                        OutputDebugStringA("TOUCH TEST");
+                    }
+                }
+            }
+            break;
+        }
         case WM_MOUSEMOVE:
         {
             if (nativeInput != nullptr)
@@ -400,7 +442,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             SetCapture(hWnd);
             if (nativeInput != nullptr)
             {
-                nativeInput->MouseDown(0, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+                nativeInput->MouseDown(Babylon::Plugins::NativeInput::LEFT_MOUSE_BUTTON_ID, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
             }
             break;
         }
@@ -408,7 +450,52 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         {
             if (nativeInput != nullptr)
             {
-                nativeInput->MouseUp(0, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+                nativeInput->MouseUp(Babylon::Plugins::NativeInput::LEFT_MOUSE_BUTTON_ID, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+            }
+            ReleaseCapture();
+            break;
+        }
+        case WM_MBUTTONDOWN:
+        {
+            SetCapture(hWnd);
+            if (nativeInput != nullptr)
+            {
+                nativeInput->MouseDown(Babylon::Plugins::NativeInput::MIDDLE_MOUSE_BUTTON_ID, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+            }
+            break;
+        }
+        case WM_MBUTTONUP:
+        {
+            if (nativeInput != nullptr)
+            {
+                nativeInput->MouseUp(Babylon::Plugins::NativeInput::MIDDLE_MOUSE_BUTTON_ID, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+            }
+            ReleaseCapture();
+            break;
+        }
+        case WM_RBUTTONDOWN:
+        {
+            SetCapture(hWnd);
+            if (nativeInput != nullptr)
+            {
+                nativeInput->MouseDown(Babylon::Plugins::NativeInput::RIGHT_MOUSE_BUTTON_ID, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+            }
+            break;
+        }
+        case WM_RBUTTONUP:
+        {
+            if (nativeInput != nullptr)
+            {
+                nativeInput->MouseUp(Babylon::Plugins::NativeInput::RIGHT_MOUSE_BUTTON_ID, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+            }
+            ReleaseCapture();
+            break;
+        }
+        case WM_MOUSEWHEEL:
+        {
+            if (nativeInput != nullptr)
+            {
+                nativeInput->MouseWheel(8, GET_WHEEL_DELTA_WPARAM(wParam));
             }
             ReleaseCapture();
             break;
