@@ -2,6 +2,7 @@
 //
 
 #include "App.h"
+
 #include <Windows.h>
 #include <Windowsx.h>
 #include <Shlwapi.h>
@@ -9,7 +10,7 @@
 #include <stdio.h>
 
 #include <Babylon/AppRuntime.h>
-#include <Babylon/Graphics.h>
+#include <Babylon/Graphics/Device.h>
 #include <Babylon/ScriptLoader.h>
 #include <Babylon/Plugins/NativeCapture.h>
 #include <Babylon/Plugins/NativeEngine.h>
@@ -30,9 +31,9 @@ HINSTANCE hInst;                     // current instance
 WCHAR szTitle[MAX_LOADSTRING];       // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING]; // the main window class name
 std::unique_ptr<Babylon::AppRuntime> runtime{};
-std::unique_ptr<Babylon::Graphics> graphics{};
+std::unique_ptr<Babylon::Graphics::Device> device{};
+std::unique_ptr<Babylon::Graphics::DeviceUpdate> update{};
 Babylon::Plugins::NativeInput* nativeInput{};
-std::unique_ptr<Babylon::Graphics::Update> update{};
 std::unique_ptr<Babylon::Plugins::ChromeDevTools> chromeDevTools{};
 std::unique_ptr<Babylon::Polyfills::Canvas> nativeCanvas{};
 bool minimized{false};
@@ -81,10 +82,10 @@ namespace
 
     void Uninitialize()
     {
-        if (graphics)
+        if (device)
         {
             update->Finish();
-            graphics->FinishRenderingCurrentFrame();
+            device->FinishRenderingCurrentFrame();
         }
 
         chromeDevTools.reset();
@@ -92,7 +93,7 @@ namespace
         runtime.reset();
         nativeCanvas.reset();
         update.reset();
-        graphics.reset();
+        device.reset();
     }
 
     void RefreshBabylon(HWND hWnd)
@@ -108,20 +109,20 @@ namespace
         auto width = static_cast<size_t>(rect.right - rect.left);
         auto height = static_cast<size_t>(rect.bottom - rect.top);
 
-        Babylon::WindowConfiguration graphicsConfig{};
+        Babylon::Graphics::WindowConfiguration graphicsConfig{};
         graphicsConfig.Window = hWnd;
         graphicsConfig.Width = width;
         graphicsConfig.Height = height;
 
-        graphics = Babylon::Graphics::CreateGraphics(graphicsConfig);
-        update = std::make_unique<Babylon::Graphics::Update>(graphics->GetUpdate("update"));
-        graphics->StartRenderingCurrentFrame();
+        device = Babylon::Graphics::Device::Create(graphicsConfig);
+        update = std::make_unique<Babylon::Graphics::DeviceUpdate>(device->GetUpdate("update"));
+        device->StartRenderingCurrentFrame();
         update->Start();
 
         runtime = std::make_unique<Babylon::AppRuntime>();
 
         runtime->Dispatch([](Napi::Env env) {
-            graphics->AddToJavaScript(env);
+            device->AddToJavaScript(env);
 
             Babylon::Polyfills::Console::Initialize(env, [](const char* message, auto) {
                 OutputDebugStringA(message);
@@ -182,7 +183,7 @@ namespace
 
     void UpdateWindowSize(size_t width, size_t height)
     {
-        graphics->UpdateSize(width, height);
+        device->UpdateSize(width, height);
     }
 }
 
@@ -220,11 +221,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         }
         else
         {
-            if (graphics)
+            if (device)
             {
                 update->Finish();
-                graphics->FinishRenderingCurrentFrame();
-                graphics->StartRenderingCurrentFrame();
+                device->FinishRenderingCurrentFrame();
+                device->StartRenderingCurrentFrame();
                 update->Start();
             }
 
@@ -318,10 +319,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         {
             if ((wParam & 0xFFF0) == SC_MINIMIZE)
             {
-                if (graphics)
+                if (device)
                 {
                     update->Finish();
-                    graphics->FinishRenderingCurrentFrame();
+                    device->FinishRenderingCurrentFrame();
                 }
 
                 runtime->Suspend();
@@ -336,9 +337,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
                     minimized = false;
 
-                    if (graphics)
+                    if (device)
                     {
-                        graphics->StartRenderingCurrentFrame();
+                        device->StartRenderingCurrentFrame();
                         update->Start();
                     }
                 }
@@ -365,7 +366,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         }
         case WM_SIZE:
         {
-            if (graphics)
+            if (device)
             {
                 auto width = static_cast<size_t>(LOWORD(lParam));
                 auto height = static_cast<size_t>(HIWORD(lParam));
@@ -400,7 +401,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             SetCapture(hWnd);
             if (nativeInput != nullptr)
             {
-                nativeInput->MouseDown(0, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+                nativeInput->MouseDown(Babylon::Plugins::NativeInput::LEFT_MOUSE_BUTTON_ID, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
             }
             break;
         }
@@ -408,7 +409,52 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         {
             if (nativeInput != nullptr)
             {
-                nativeInput->MouseUp(0, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+                nativeInput->MouseUp(Babylon::Plugins::NativeInput::LEFT_MOUSE_BUTTON_ID, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+            }
+            ReleaseCapture();
+            break;
+        }
+        case WM_MBUTTONDOWN:
+        {
+            SetCapture(hWnd);
+            if (nativeInput != nullptr)
+            {
+                nativeInput->MouseDown(Babylon::Plugins::NativeInput::MIDDLE_MOUSE_BUTTON_ID, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+            }
+            break;
+        }
+        case WM_MBUTTONUP:
+        {
+            if (nativeInput != nullptr)
+            {
+                nativeInput->MouseUp(Babylon::Plugins::NativeInput::MIDDLE_MOUSE_BUTTON_ID, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+            }
+            ReleaseCapture();
+            break;
+        }
+        case WM_RBUTTONDOWN:
+        {
+            SetCapture(hWnd);
+            if (nativeInput != nullptr)
+            {
+                nativeInput->MouseDown(Babylon::Plugins::NativeInput::RIGHT_MOUSE_BUTTON_ID, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+            }
+            break;
+        }
+        case WM_RBUTTONUP:
+        {
+            if (nativeInput != nullptr)
+            {
+                nativeInput->MouseUp(Babylon::Plugins::NativeInput::RIGHT_MOUSE_BUTTON_ID, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+            }
+            ReleaseCapture();
+            break;
+        }
+        case WM_MOUSEWHEEL:
+        {
+            if (nativeInput != nullptr)
+            {
+                nativeInput->MouseWheel(Babylon::Plugins::NativeInput::MOUSEWHEEL_Y_ID, GET_WHEEL_DELTA_WPARAM(wParam));
             }
             ReleaseCapture();
             break;
