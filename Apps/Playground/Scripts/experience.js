@@ -167,8 +167,46 @@ CreateBoxAsync(scene).then(function () {
         window.setTimeout(logFpsLoop, 3000);
     }
 
+    var frames = 0;
+    var events = 0;
+    var isReady = true;
+    var dsm = new BABYLON.DeviceSourceManager(scene.getEngine());
+    dsm.onDeviceConnectedObservable.add((device) => {
+        if (device.deviceType === BABYLON.DeviceType.Touch || device.deviceType === BABYLON.DeviceType.Mouse) {
+            console.log(BABYLON.DeviceType[device.deviceType] = " device connected");
+
+            device.onInputChangedObservable.add(eventData => {
+                if (eventData.inputIndex === BABYLON.PointerInput.LeftClick && device.getInput(eventData.inputIndex) === 1) {
+                    if (isReady) {
+                        console.log("isReady now false")
+                        isReady = false;
+                        frames = 0;
+                    }
+
+                    setTimeout(function () {
+                        isReady = true;
+                        console.log(`Frames: ${frames}, Events: ${events}`);
+                        
+                        frames = 0;
+                        events = 0;
+                    }, 5000);
+                }
+                else if (eventData.inputIndex === BABYLON.PointerInput.Move && device.getInput(BABYLON.PointerInput.LeftClick) === 1) {
+                    events++;
+                }
+                else if (eventData.inputIndex === BABYLON.PointerInput.LeftClick && device.getInput(eventData.inputIndex) === 1) {
+                    isReady = true;
+                }
+            });
+        }
+    });
+
     engine.runRenderLoop(function () {
         scene.render();
+        if (!isReady) {
+            console.log("frame");
+            frames++;
+        }
     });
 
     if (vr || ar || hololens) {
